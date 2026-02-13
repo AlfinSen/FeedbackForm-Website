@@ -1,34 +1,61 @@
-name: Deploy Node.js App to Ubuntu Server
+name: Deploy Docker App to Ubuntu Server
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Deploy to Server via SSH
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.HOST }}
-        username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.KEY }}
-        port: ${{ secrets.PORT }}
-        script: |
-          # Navigate to the target directory
-          cd ${{ secrets.TARGET_DIR }}
-          
-          # Pull the latest changes from the repository
-          git pull origin main
-          
-          # Install dependencies (only if package.json changed, but good practice to run)
-          npm install --production
-          
-          # Restart the application using PM2
-          # Ensure PM2 is installed globally on the server: npm install -g pm2
-          # If the app is not started yet, start it. Otherwise, restart.
-          pm2 restart all || pm2 start server.js --name "feedback-app"
+      - name: Downcase REPO name
+        run: |
+          echo "REPO_LOWER=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ env.REPO_LOWER }}:latest
+
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+            # Login to GHCR to pull the private image
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull the new image
+            docker pull ghcr.io/${{ env.REPO_LOWER }}:latest
+
+            # Stop and remove the existing container if it exists
+            docker stop feedback-app || true
+            docker rm feedback-app || true
+
+            # Run the new container
+            # We mount the feedback.xlsx file from the host to persist data
+            docker run -d \
+              --name feedback-app \
+              --restart unless-stopped \
+              -p 3000:3000 \
+              -v ${{ secrets.TARGET_DIR }}/feedback.xlsx:/usr/src/app/feedback.xlsx \
+              ghcr.io/${{ env.REPO_LOWER }}:latest
