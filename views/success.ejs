@@ -1,0 +1,22 @@
+<%- include('layout', { body: `<div class="success-message">
+    <div class="success-icon">✓</div>
+    <h2>Thank You!</h2>
+    <p>Your feedback has been successfully submitted.</p>
+
+    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+        <a href="/" class="submit-btn" style="text-decoration: none; display: inline-block; width: auto;">Submit
+            Another</a>
+
+        ${(typeof feedback !== 'undefined') ? `
+        <form action="/edit" method="POST" style="margin: 0;">
+            <input type="hidden" name="id" value="${feedback.id}">
+            <input type="hidden" name="name" value="${feedback.name}">
+            <input type="hidden" name="email" value="${feedback.email}">
+            <input type="hidden" name="rating" value="${feedback.rating}">
+            <input type="hidden" name="comments" value="${feedback.comments}">
+            <button type="submit" class="submit-btn" style="background-color: #64748b;">Edit Response</button>
+        </form>
+        ` : ''}
+    </div>
+    </div>
+    ` }) %>
