@@ -37,6 +37,12 @@ jobs:
           script: |
             mkdir -p ~/feedback-app/nginx
             
+            # Prevent Docker from creating feedback.xlsx as a directory
+            if [ -d ~/feedback-app/feedback.xlsx ]; then
+              rm -rf ~/feedback-app/feedback.xlsx
+            fi
+            touch ~/feedback-app/feedback.xlsx
+            
             # Create docker-compose.yml on the server
             cat > ~/feedback-app/docker-compose.yml << 'EOF'
             version: "3.8"
